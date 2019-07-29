@@ -400,7 +400,7 @@ void ROIAlignBackward(
 
     // TODO: check whether this offset is correct
     // point to the current box's gradients
-    const T* offset_grad_bbox = grad_bbox + n * 4;
+    T* offset_grad_bbox = grad_bbox + n * 4;
 
     // We use roi_bin_grid to sample the grid and mimic integral
     int roi_bin_grid_h = (sampling_ratio > 0)
@@ -417,14 +417,14 @@ void ROIAlignBackward(
           static_cast<T>(iy + .5f) * bin_size_h /
               static_cast<T>(roi_bin_grid_h); // e.g., 0.5, 1.5
 
-      const d_y = (y - roi_start_h) / roi_height;
+      T d_y = (y - roi_start_h) / roi_height;
 
       for (int ix = 0; ix < roi_bin_grid_w; ix++) {
         const T x = roi_start_w + pw * bin_size_w +
             static_cast<T>(ix + .5f) * bin_size_w /
                 static_cast<T>(roi_bin_grid_w);
 
-        const d_x = (x - roi_start_w) / roi_width;
+        T d_x = (x - roi_start_w) / roi_width;
 
         // (x, y) are (x_ij, y_ij) in our equation
 
@@ -480,7 +480,7 @@ void ROIAlignBackward(
 
 
 
-at::Tensor ROIAlign_backward_cpu_v2(
+at::Tensor ROIAlign_backward_cpu(
     const at::Tensor& grad,
     const at::Tensor& rois,
     const at::Tensor& input,
@@ -499,14 +499,14 @@ at::Tensor ROIAlign_backward_cpu_v2(
 
   at::TensorArg grad_t{grad, "grad", 1}, rois_t{rois, "rois", 2};
 
-  at::CheckedFrom c = "ROIAlign_backward_cpu_v2";
+  at::CheckedFrom c = "ROIAlign_backward_cpu";
   at::checkAllSameType(c, {grad_t, rois_t});
 
   at::Tensor grad_input =
       at::zeros({batch_size, channels, height, width}, grad.options());
 
   auto num_rois = rois.size(0);
-  grad_bbox = at::zeros({num_rois, 4}, grad.options());
+  at::Tensor grad_bbox = at::zeros({num_rois, 4}, grad.options());
 
   // handle possibly empty gradients
   if (grad.numel() == 0) {

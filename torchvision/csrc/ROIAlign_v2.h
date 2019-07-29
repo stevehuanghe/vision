@@ -64,7 +64,7 @@ at::Tensor ROIAlign_backward(
     AT_ERROR("Not compiled with GPU support");
 #endif
   }
-  return ROIAlign_backward_cpu_v2(
+  return ROIAlign_backward_cpu(
       grad,
       rois,
       input,
