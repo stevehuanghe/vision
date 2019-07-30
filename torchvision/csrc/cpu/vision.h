@@ -47,4 +47,4 @@ at::Tensor ROIAlign_backward_cpu(
     const int height,
     const int width,
     const int sampling_ratio,
-    at::Tensor *bbox_grad);
+    at::Tensor & bbox_grad);

@@ -46,7 +46,7 @@ at::Tensor ROIAlign_backward(
     const int height,
     const int width,
     const int sampling_ratio,
-    at::Tensor *bbox_grad) {
+    at::Tensor & bbox_grad) {
   if (grad.type().is_cuda()) {
 #ifdef WITH_CUDA
     return ROIAlign_backward_cuda(

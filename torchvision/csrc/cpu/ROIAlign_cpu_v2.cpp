@@ -313,12 +313,13 @@ void bilinear_interpolate_gradient(
   T lx = x - x_low;
   T hy = 1. - ly, hx = 1. - lx;
 
+  // f(x_q, y_q)
   T f1 = input[y_low * width + x_low];
   T f2 = input[y_low * width + x_high];
   T f3 = input[y_high * width + x_low];
   T f4 = input[y_high * width + x_high];
 
-  T g1_x = -hx;  // (-1)^I(x_q < x_ij)
+  T g1_x = -hx;  // g(x_q, x_ij)(-1)^I(x_q < x_ij)
   T g2_x = lx;
   T g3_x = -hx;
   T g4_x = lx;
@@ -338,6 +339,7 @@ void bilinear_interpolate_gradient(
   // T v4 = input[y_high * width + x_high];
   // T val = (w1 * v1 + w2 * v2 + w3 * v3 + w4 * v4);
 
+  // F_ij = \sum_q f(x_q, y_q)g(x_q, x_ij)g(y_q, y_ij)
   w1 = hy * hx, w2 = hy * lx, w3 = ly * hx, w4 = ly * lx;
 
   return;
@@ -385,13 +387,11 @@ void ROIAlignBackward(
     T bin_size_h = static_cast<T>(roi_height) / static_cast<T>(pooled_height);
     T bin_size_w = static_cast<T>(roi_width) / static_cast<T>(pooled_width);
 
-    T* offset_grad_input =
-        grad_input + ((roi_batch_ind * channels + c) * height * width);
+    T* offset_grad_input = grad_input + ((roi_batch_ind * channels + c) * height * width);
 
     // TODO: check whether this offset is correct
-    // point to the current img feature map, should be same as pointer "offset_grad_input"?
-    T* offset_feat =
-        grad_input + ((roi_batch_ind * channels + c) * height * width);
+    // point to the current img feature map, the offset should be same as pointer "offset_grad_input"?
+    const T* offset_input = input + ((roi_batch_ind * channels + c) * height * width);
 
     int output_offset = n * n_stride + c * c_stride;
     const T* offset_grad_output = grad_output + output_offset;
@@ -400,6 +400,7 @@ void ROIAlignBackward(
 
     // TODO: check whether this offset is correct
     // point to the current box's gradients
+    // no index dim 0 for box grad
     T* offset_grad_bbox = grad_bbox + n * 4;
 
     // We use roi_bin_grid to sample the grid and mimic integral
@@ -432,7 +433,7 @@ void ROIAlignBackward(
         int x_low, x_high, y_low, y_high;
 
         bilinear_interpolate_gradient(
-            offset_feat,
+            offset_input,
             height,
             width,
             y,
@@ -476,6 +477,7 @@ void ROIAlignBackward(
       } // ix
     } // iy
   } // for
+
 } // ROIAlignBackward
 
 
@@ -492,7 +494,7 @@ at::Tensor ROIAlign_backward_cpu(
     const int height,
     const int width,
     const int sampling_ratio,
-    at::Tensor *bbox_grad) {
+    at::Tensor & grad_bbox2) {
 
   AT_ASSERTM(grad.device().is_cpu(), "grad must be a CPU tensor");
   AT_ASSERTM(rois.device().is_cpu(), "rois must be a CPU tensor");
@@ -539,6 +541,13 @@ at::Tensor ROIAlign_backward_cpu(
         h_stride,
         w_stride);
   });
+
+  for(int i = 0; i < num_rois; i++ ){
+    for(int j = 0; j < 4; j++)
+    grad_bbox2[i][j] = grad_bbox[i][j];
+  }
+
+
   return grad_input;
 }
 

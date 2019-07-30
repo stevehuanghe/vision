@@ -12,37 +12,42 @@ from ._utils import convert_boxes_to_roi_format
 
 class _RoIAlignFunction(Function):
     @staticmethod
-    def forward(ctx, input, roi, output_size, spatial_scale, sampling_ratio):
-        ctx.save_for_backward(roi)
+    def forward(ctx, inputs, roi, output_size, spatial_scale, sampling_ratio):
+        ctx.save_for_backward(roi, inputs)
         ctx.output_size = _pair(output_size)
         ctx.spatial_scale = spatial_scale
         ctx.sampling_ratio = sampling_ratio
-        ctx.input_shape = input.size()
+        ctx.input_shape = inputs.size()
         output = _C.roi_align_forward(
-            input, roi, spatial_scale,
+            inputs, roi, spatial_scale,
             output_size[0], output_size[1], sampling_ratio)
         return output
 
     @staticmethod
     @once_differentiable
     def backward(ctx, grad_output):
-        rois, = ctx.saved_tensors
+        rois, inputs = ctx.saved_tensors
         output_size = ctx.output_size
         spatial_scale = ctx.spatial_scale
         sampling_ratio = ctx.sampling_ratio
         bs, ch, h, w = ctx.input_shape
+        grad_bbox = torch.zeros(rois.size(0), 4).double()
+        idx = torch.zeros(rois.size(0), 1)
+
         grad_input = _C.roi_align_backward(
-            grad_output, rois, spatial_scale,
-            output_size[0], output_size[1], bs, ch, h, w, sampling_ratio)
-        return grad_input, None, None, None, None
+            grad_output, rois, inputs, spatial_scale,
+            output_size[0], output_size[1], bs, ch, h, w, sampling_ratio, grad_bbox)
+
+        grad_bbox = torch.cat((idx, grad_bbox.float()), dim=1)
+        return grad_input, grad_bbox, None, None, None
 
 
-def roi_align(input, boxes, output_size, spatial_scale=1.0, sampling_ratio=-1):
+def roi_align(inputs, boxes, output_size, spatial_scale=1.0, sampling_ratio=-1):
     """
     Performs Region of Interest (RoI) Align operator described in Mask R-CNN
 
     Arguments:
-        input (Tensor[N, C, H, W]): input tensor
+        inputs (Tensor[N, C, H, W]): input tensor
         boxes (Tensor[K, 5] or List[Tensor[L, 4]]): the box coordinates in x1,y1,x2,y2
             format where the regions will be taken from. If a single Tensor is passed,
             then the first column should contain the batch index. If a list of Tensors
@@ -64,7 +69,7 @@ def roi_align(input, boxes, output_size, spatial_scale=1.0, sampling_ratio=-1):
     rois = boxes
     if not isinstance(rois, torch.Tensor):
         rois = convert_boxes_to_roi_format(rois)
-    return _RoIAlignFunction.apply(input, rois, output_size, spatial_scale, sampling_ratio)
+    return _RoIAlignFunction.apply(inputs, rois, output_size, spatial_scale, sampling_ratio)
 
 
 class RoIAlign(nn.Module):

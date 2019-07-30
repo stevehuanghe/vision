@@ -9,3 +9,5 @@ __all__ = [
     'nms', 'roi_align', 'RoIAlign', 'roi_pool', 'RoIPool',
     'MultiScaleRoIAlign', 'FeaturePyramidNetwork'
 ]
+
+print("importing Steve's modified RoIAlign")
