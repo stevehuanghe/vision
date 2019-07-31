@@ -319,18 +319,21 @@ void bilinear_interpolate_gradient(
   T f3 = input[y_high * width + x_low];
   T f4 = input[y_high * width + x_high];
 
-  T g1_x = -hx;  // g(x_q, x_ij)(-1)^I(x_q < x_ij)
-  T g2_x = lx;
-  T g3_x = -hx;
+  T g1_x = -hx;
+  T g2_x = -lx;
+  T g3_x = hx;
   T g4_x = lx;
 
-  T g1_y = -hy;
-  T g2_y = -hy;
-  T g3_y = ly;
+  T g1_y = -hy;  // g(y_q, y_ij)(-1)^I(x_q < x_ij)
+  T g2_y = hy;
+  T g3_y = -ly;
   T g4_y = ly;
 
   w_x = f1 * g1_y + f2 * g2_y + f3 * g3_y + f4 * g4_y;
   w_y = f1 * g1_x + f2 * g2_x + f3 * g3_x + f4 * g4_x;
+  std::cout<<"f1:"<<f1<<",f2:"<<f2<<",f3:"<<f3<<",f4:"<<f4<<std::endl;
+  std::cout<<"hx:"<<hx<<",hy:"<<hy<<std::endl;
+  std::cout<<"x: "<<x<<", y: "<<y<<std::endl;
 
   // reference in forward
   // T v1 = input[y_low * width + x_low];
@@ -338,8 +341,8 @@ void bilinear_interpolate_gradient(
   // T v3 = input[y_high * width + x_low];
   // T v4 = input[y_high * width + x_high];
   // T val = (w1 * v1 + w2 * v2 + w3 * v3 + w4 * v4);
-
   // F_ij = \sum_q f(x_q, y_q)g(x_q, x_ij)g(y_q, y_ij)
+
   w1 = hy * hx, w2 = hy * lx, w3 = ly * hx, w4 = ly * lx;
 
   return;
@@ -455,11 +458,21 @@ void ROIAlignBackward(
         T g3 = grad_output_this_bin * w3 / count;
         T g4 = grad_output_this_bin * w4 / count;
 
-        T g_x1 = grad_output_this_bin / count * (1 - d_x);
-        T g_x2 = grad_output_this_bin / count * (d_x);
-        T g_y1 = grad_output_this_bin / count * (1 - d_y);
-        T g_y2 = grad_output_this_bin / count * (d_y);
+        T g_x1 = grad_output_this_bin / count * w_x * (1 - d_x);
+        T g_x2 = grad_output_this_bin / count * w_x * (d_x);
+        T g_y1 = grad_output_this_bin / count * w_y * (1 - d_y);
+        T g_y2 = grad_output_this_bin / count * w_y * (d_y);
 
+        std::cout<<index<<"-----px="<<pw<<"-----py="<<ph<<" "<<ix<<" "<<iy<<std::endl;
+        std::cout<<"w_x "<<w_x<<std::endl;
+        std::cout<<"w_y "<<w_y<<std::endl;
+        std::cout<<"d_x "<<d_x<<std::endl;
+        std::cout<<"d_y "<<d_y<<std::endl;
+        std::cout<<"g_x1 "<<g_x1<<std::endl;
+        std::cout<<"g_y1 "<<g_y1<<std::endl;
+        std::cout<<"g_x2 "<<g_x2<<std::endl;
+        std::cout<<"g_y2 "<<g_y2<<std::endl;
+        std::cout<<"------------------"<<std::endl;
 
         if (x_low >= 0 && x_high >= 0 && y_low >= 0 && y_high >= 0) {
           // atomic add is not needed for now since it is single threaded

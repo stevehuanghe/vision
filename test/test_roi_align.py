@@ -68,7 +68,7 @@ class RoIAlignTester(unittest.TestCase):
                 1.9925001, 1.8625001, 1.9925001, 0.93124974],
                [0.43562484, 0.9312497, 0.8712497, 0.9312497, 0.5181249, 0.5181248,
                 0.9312496, 0.8712497, 0.93124974, 0.43562466]]]], dtype=cls.dtype)
-
+    '''
     def test_roi_align_basic_cpu(self):
         device = torch.device('cpu')
         x = self.x.to(device)
@@ -135,11 +135,6 @@ class RoIAlignTester(unittest.TestCase):
         y.retain_grad()
         s = y.sum()
         s.backward()
-        print(s)
-        print(x.grad)
-        print(y.grad)
-        print(y)
-
 
         # assert torch.allclose(x.grad, gt_grad), 'gradient incorrect for RoIAlign CPU'
 
@@ -155,36 +150,39 @@ class RoIAlignTester(unittest.TestCase):
 
         assert gradcheck(func, (x,)), 'gradcheck failed for RoIAlign CPU'
         assert gradcheck(func, (x.transpose(2, 3),)), 'gradcheck failed for RoIAlign CPU'
+    '''
 
+    def test_roi_align_gradcheck_cpu(self):
+        dtype = torch.float64
+        device = torch.device('cpu')
+        m = ops.RoIAlign((5, 5), 1, 1).to(dtype=dtype, device=device)
+        x = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=True)
+        # x = torch.arange(0, 100, device=device, dtype=dtype, requires_grad=True).view(1,1,10,10)
+        # rois = torch.tensor([[0, 0, 5, 5]], dtype=dtype, requires_grad=True)
+        rois = self.single_roi.clone()
+        rois = rois.to(device=device, dtype=dtype)
+        rois.requires_grad = True
 
+        def func(img, frois):
+            n_rois = frois.size(0)
+            idxs = torch.zeros(n_rois, 1, dtype=dtype).to(device)
+            frois = torch.cat((idxs, frois), dim=1)
+            return m(img, frois)
 
-    # def test_roi_align_gradcheck_cpu(self):
-    #     dtype = torch.float64
-    #     device = torch.device('cpu')
-    #     m = ops.RoIAlign((5, 5), 0.5, 1).to(dtype=dtype, device=device)
-    #     x = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=True)
-    #     rois = self.rois.clone()
-    #     rois = rois.to(device=device, dtype=dtype)
-    #     rois.requires_grad = True
-    #
-    #     def func(img, frois):
-    #         n_rois = frois.size(0)
-    #         idxs = torch.zeros(n_rois, 1, dtype=dtype).to(device)
-    #         frois = torch.cat((idxs, frois), dim=1)
-    #         assert frois.shape == self.rois.shape
-    #         return m(img, frois)
-    #
-    #     y = m(x, rois)
-    #     # print("roi_align output:")
-    #     # print(y)
-    #     # print("###################")
-    #     s = y.sum()
-    #     s.backward()
-    #     # print(rois.grad)
-    #     # print(rois.requires_grad)
-    #
-    #     # assert gradcheck(func, (x, rois)), 'gradcheck failed for RoIAlign CPU'
-    #     # assert gradcheck(func, (x.transpose(2, 3), rois)), 'gradcheck failed for RoIAlign CPU'
+        print("input")
+        print(x)
+        y = m(x, rois)
+        y.retain_grad()
+        print("roi_align output:")
+        print(y)
+        print("###################")
+        s = y.sum()
+        s.backward()
+        print("roi grad:")
+        print(rois.grad)
+
+        # assert gradcheck(func, (x, rois)), 'gradcheck failed for RoIAlign CPU'
+        # assert gradcheck(func, (x.transpose(2, 3), rois)), 'gradcheck failed for RoIAlign CPU'
 
 
 if __name__ == '__main__':
