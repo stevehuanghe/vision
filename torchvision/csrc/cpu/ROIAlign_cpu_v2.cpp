@@ -86,8 +86,10 @@ void pre_calc_for_bilinear_interpolate(
             x_high = x_low + 1;
           }
 
-          T ly = y - y_low;
-          T lx = x - x_low;
+          // TODO: add eps
+          T eps = 0.0001;
+          T ly = y - y_low + eps;
+          T lx = x - x_low + eps;
           T hy = 1. - ly, hx = 1. - lx;
           T w1 = hy * hx, w2 = hy * lx, w3 = ly * hx, w4 = ly * lx;
 
@@ -308,9 +310,10 @@ void bilinear_interpolate_gradient(
   } else {
     x_high = x_low + 1;
   }
-
-  T ly = y - y_low;
-  T lx = x - x_low;
+  // TODO: add eps
+  T eps = 0.0001;
+  T ly = y - y_low + eps;
+  T lx = x - x_low + eps;
   T hy = 1. - ly, hx = 1. - lx;
 
   // f(x_q, y_q)
@@ -331,6 +334,7 @@ void bilinear_interpolate_gradient(
 
   w_x = f1 * g1_y + f2 * g2_y + f3 * g3_y + f4 * g4_y;
   w_y = f1 * g1_x + f2 * g2_x + f3 * g3_x + f4 * g4_x;
+
   std::cout<<"f1:"<<f1<<",f2:"<<f2<<",f3:"<<f3<<",f4:"<<f4<<std::endl;
   std::cout<<"hx:"<<hx<<",hy:"<<hy<<std::endl;
   std::cout<<"x: "<<x<<", y: "<<y<<std::endl;
@@ -463,7 +467,8 @@ void ROIAlignBackward(
         T g_y1 = grad_output_this_bin / count * w_y * (1 - d_y);
         T g_y2 = grad_output_this_bin / count * w_y * (d_y);
 
-        std::cout<<index<<"-----px="<<pw<<"-----py="<<ph<<" "<<ix<<" "<<iy<<std::endl;
+        std::cout<<index<<", px="<<pw<<", py="<<ph<<", "<<ix<<", "<<iy<<std::endl;
+        std::cout<<"grad_output_this_bin: "<<grad_output_this_bin<<std::endl;
         std::cout<<"w_x "<<w_x<<std::endl;
         std::cout<<"w_y "<<w_y<<std::endl;
         std::cout<<"d_x "<<d_x<<std::endl;

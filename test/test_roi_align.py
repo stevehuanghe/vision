@@ -158,8 +158,8 @@ class RoIAlignTester(unittest.TestCase):
         m = ops.RoIAlign((5, 5), 1, 1).to(dtype=dtype, device=device)
         x = torch.rand(1, 1, 10, 10, dtype=dtype, device=device, requires_grad=True)
         # x = torch.arange(0, 100, device=device, dtype=dtype, requires_grad=True).view(1,1,10,10)
-        # rois = torch.tensor([[0, 0, 5, 5]], dtype=dtype, requires_grad=True)
-        rois = self.single_roi.clone()
+        rois = torch.tensor([[0, 0, 3, 3]], dtype=dtype, requires_grad=True)
+        # rois = self.single_roi.clone()
         rois = rois.to(device=device, dtype=dtype)
         rois.requires_grad = True
 
@@ -169,19 +169,19 @@ class RoIAlignTester(unittest.TestCase):
             frois = torch.cat((idxs, frois), dim=1)
             return m(img, frois)
 
-        print("input")
-        print(x)
-        y = m(x, rois)
-        y.retain_grad()
-        print("roi_align output:")
-        print(y)
-        print("###################")
-        s = y.sum()
-        s.backward()
-        print("roi grad:")
-        print(rois.grad)
+        # print("input")
+        # print(x)
+        # y = m(x, rois)
+        # y.retain_grad()
+        # print("roi_align output:")
+        # print(y)
+        # print("###################")
+        # s = y.sum()
+        # s.backward()
+        # print("roi grad:")
+        # print(rois.grad)
 
-        # assert gradcheck(func, (x, rois)), 'gradcheck failed for RoIAlign CPU'
+        assert gradcheck(func, (x, rois)), 'gradcheck failed for RoIAlign CPU'
         # assert gradcheck(func, (x.transpose(2, 3), rois)), 'gradcheck failed for RoIAlign CPU'
 
 
