@@ -1,4 +1,4 @@
-#include "ROIAlign_v2.h"
+#include "ROIAlign.h"
 #include "ROIPool.h"
 #include "nms.h"
 
