@@ -377,7 +377,7 @@ void ROIAlignBackward(
     int pw = index % pooled_width;
     int ph = (index / pooled_width) % pooled_height;
     int c = (index / pooled_width / pooled_height) % channels;
-    int n = index / pooled_width / pooled_height / channels;  // TODO: n is the box index?
+    int n = index / pooled_width / pooled_height / channels;  // n is the box index
 
     const T* offset_rois = rois + n * 5;
     int roi_batch_ind = offset_rois[0];
@@ -396,7 +396,6 @@ void ROIAlignBackward(
 
     T* offset_grad_input = grad_input + ((roi_batch_ind * channels + c) * height * width);
 
-    // TODO: check whether this offset is correct
     // point to the current img feature map, the offset should be same as pointer "offset_grad_input"?
     const T* offset_input = input + ((roi_batch_ind * channels + c) * height * width);
 
@@ -405,7 +404,6 @@ void ROIAlignBackward(
     const T grad_output_this_bin =
         offset_grad_output[ph * h_stride + pw * w_stride];
 
-    // TODO: check whether this offset is correct
     // point to the current box's gradients
     // no index dim 0 for box grad
     T* offset_grad_bbox = grad_bbox + n * 4;

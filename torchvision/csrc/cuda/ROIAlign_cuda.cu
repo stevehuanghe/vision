@@ -43,9 +43,9 @@ __device__ T bilinear_interpolate(
   } else {
     x_high = x_low + 1;
   }
-
-  T ly = y - y_low;
-  T lx = x - x_low;
+  T eps = 0.;
+  T ly = y - y_low + eps;
+  T lx = x - x_low + eps;
   T hy = 1. - ly, hx = 1. - lx;
 
   // do bilinear interpolation
@@ -131,6 +131,7 @@ __global__ void RoIAlignForward(
 
 template <typename T>
 __device__ void bilinear_interpolate_gradient(
+    const T* input,
     const int height,
     const int width,
     T y,
@@ -139,6 +140,8 @@ __device__ void bilinear_interpolate_gradient(
     T& w2,
     T& w3,
     T& w4,
+    T& w_x,
+    T& w_y,
     int& x_low,
     int& x_high,
     int& y_low,
@@ -173,10 +176,29 @@ __device__ void bilinear_interpolate_gradient(
   } else {
     x_high = x_low + 1;
   }
-
-  T ly = y - y_low;
-  T lx = x - x_low;
+  T eps = 0.;
+  T ly = y - y_low + eps;
+  T lx = x - x_low + eps;
   T hy = 1. - ly, hx = 1. - lx;
+
+  // f(x_q, y_q)
+  T f1 = input[y_low * width + x_low];
+  T f2 = input[y_low * width + x_high];
+  T f3 = input[y_high * width + x_low];
+  T f4 = input[y_high * width + x_high];
+
+  T g1_x = -hx;
+  T g2_x = -lx;
+  T g3_x = hx;
+  T g4_x = lx;
+
+  T g1_y = -hy;  // g(y_q, y_ij)(-1)^I(x_q < x_ij)
+  T g2_y = hy;
+  T g3_y = -ly;
+  T g4_y = ly;
+
+  w_x = f1 * g1_y + f2 * g2_y + f3 * g3_y + f4 * g4_y;
+  w_y = f1 * g1_x + f2 * g2_x + f3 * g3_x + f4 * g4_x;
 
   // reference in forward
   // T v1 = input[y_low * width + x_low];
@@ -202,6 +224,8 @@ __global__ void RoIAlignBackward(
     const int pooled_width,
     const int sampling_ratio,
     T* grad_input,
+    T* grad_bbox,
+    const T* input,
     const T* rois,
     const int n_stride,
     const int c_stride,
@@ -232,12 +256,20 @@ __global__ void RoIAlignBackward(
     T* offset_grad_input =
         grad_input + ((roi_batch_ind * channels + c) * height * width);
 
+    // point to the current img feature map, the offset should be same as pointer "offset_grad_input"?
+    const T* offset_input = input + ((roi_batch_ind * channels + c) * height * width);
+
+
     // We need to index the gradient using the tensor strides to access the
     // correct values.
     int output_offset = n * n_stride + c * c_stride;
     const T* offset_grad_output = grad_output + output_offset;
     const T grad_output_this_bin =
         offset_grad_output[ph * h_stride + pw * w_stride];
+
+    // point to the current box's gradients
+    // no index dim 0 for box grad
+    T* offset_grad_bbox = grad_bbox + n * 4;
 
     // We use roi_bin_grid to sample the grid and mimic integral
     int roi_bin_grid_h = (sampling_ratio > 0)
@@ -254,15 +286,21 @@ __global__ void RoIAlignBackward(
       const T y = roi_start_h + ph * bin_size_h +
           static_cast<T>(iy + .5f) * bin_size_h /
               static_cast<T>(roi_bin_grid_h); // e.g., 0.5, 1.5
+
+      T d_y = (y - roi_start_h) / roi_height;
+
       for (int ix = 0; ix < roi_bin_grid_w; ix++) {
         const T x = roi_start_w + pw * bin_size_w +
             static_cast<T>(ix + .5f) * bin_size_w /
                 static_cast<T>(roi_bin_grid_w);
 
-        T w1, w2, w3, w4;
+        T d_x = (x - roi_start_w) / roi_width;
+
+        T w1, w2, w3, w4, w_x, w_y;
         int x_low, x_high, y_low, y_high;
 
         bilinear_interpolate_gradient(
+            offset_input,
             height,
             width,
             y,
@@ -271,6 +309,8 @@ __global__ void RoIAlignBackward(
             w2,
             w3,
             w4,
+            w_x,
+            w_y,
             x_low,
             x_high,
             y_low,
@@ -282,6 +322,11 @@ __global__ void RoIAlignBackward(
         T g3 = grad_output_this_bin * w3 / count;
         T g4 = grad_output_this_bin * w4 / count;
 
+        T g_x1 = grad_output_this_bin / count * w_x * (1 - d_x);
+        T g_x2 = grad_output_this_bin / count * w_x * (d_x);
+        T g_y1 = grad_output_this_bin / count * w_y * (1 - d_y);
+        T g_y2 = grad_output_this_bin / count * w_y * (d_y);
+
         if (x_low >= 0 && x_high >= 0 && y_low >= 0 && y_high >= 0) {
           atomicAdd(
               offset_grad_input + y_low * width + x_low, static_cast<T>(g1));
@@ -291,6 +336,12 @@ __global__ void RoIAlignBackward(
               offset_grad_input + y_high * width + x_low, static_cast<T>(g3));
           atomicAdd(
               offset_grad_input + y_high * width + x_high, static_cast<T>(g4));
+
+          atomicAdd(offset_grad_bbox, static_cast<T>(g_x1));
+          atomicAdd(offset_grad_bbox + 1, static_cast<T>(g_y1));
+          atomicAdd(offset_grad_bbox + 2, static_cast<T>(g_x2));
+          atomicAdd(offset_grad_bbox + 3, static_cast<T>(g_y2));
+
         } // if
       } // ix
     } // iy
@@ -358,6 +409,7 @@ at::Tensor ROIAlign_forward_cuda(
 at::Tensor ROIAlign_backward_cuda(
     const at::Tensor& grad,
     const at::Tensor& rois,
+    const at::Tensor& input,
     const float spatial_scale,
     const int pooled_height,
     const int pooled_width,
@@ -365,7 +417,9 @@ at::Tensor ROIAlign_backward_cuda(
     const int channels,
     const int height,
     const int width,
-    const int sampling_ratio) {
+    const int sampling_ratio,
+    at::Tensor & grad_bbox2) {
+
   AT_ASSERTM(grad.device().is_cuda(), "grad must be a CUDA tensor");
   AT_ASSERTM(rois.device().is_cuda(), "rois must be a CUDA tensor");
 
@@ -379,6 +433,9 @@ at::Tensor ROIAlign_backward_cuda(
 
   at::Tensor grad_input =
       at::zeros({batch_size, channels, height, width}, grad.options());
+
+  int num_rois = rois.size(0);
+  at::Tensor grad_bbox = at::zeros({num_rois, 4}, grad.options());
 
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
@@ -411,12 +468,20 @@ at::Tensor ROIAlign_backward_cuda(
         pooled_width,
         sampling_ratio,
         grad_input.data<scalar_t>(),
+        grad_bbox.data<scalar_t>(),  // added
+        input.contiguous().data<scalar_t>(),  // added
         rois.contiguous().data<scalar_t>(),
         n_stride,
         c_stride,
         h_stride,
         w_stride);
   });
+
+  for(int i = 0; i < num_rois; i++ ){
+    for(int j = 0; j < 4; j++)
+    grad_bbox2[i][j] = grad_bbox[i][j];
+  }
+
   AT_CUDA_CHECK(cudaGetLastError());
   return grad_input;
 }

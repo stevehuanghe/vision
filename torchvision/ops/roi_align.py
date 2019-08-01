@@ -31,8 +31,9 @@ class _RoIAlignFunction(Function):
         spatial_scale = ctx.spatial_scale
         sampling_ratio = ctx.sampling_ratio
         bs, ch, h, w = ctx.input_shape
-        grad_bbox = torch.zeros(rois.size(0), 4).double()
-        idx = torch.zeros(rois.size(0), 1).double()
+
+        grad_bbox = torch.zeros(rois.size(0), 4).double().to(rois.device)
+        idx = torch.zeros(rois.size(0), 1).double().to(rois.device)
 
         grad_input = _C.roi_align_backward(
             grad_output, rois, inputs, spatial_scale,

@@ -13,6 +13,7 @@ at::Tensor ROIAlign_forward_cuda(
 at::Tensor ROIAlign_backward_cuda(
     const at::Tensor& grad,
     const at::Tensor& rois,
+    const at::Tensor& input,
     const float spatial_scale,
     const int pooled_height,
     const int pooled_width,
@@ -20,7 +21,8 @@ at::Tensor ROIAlign_backward_cuda(
     const int channels,
     const int height,
     const int width,
-    const int sampling_ratio);
+    const int sampling_ratio,
+    at::Tensor & grad_bbox2);
 
 std::tuple<at::Tensor, at::Tensor> ROIPool_forward_cuda(
     const at::Tensor& input,

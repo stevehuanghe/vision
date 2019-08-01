@@ -52,6 +52,7 @@ at::Tensor ROIAlign_backward(
     return ROIAlign_backward_cuda(
         grad,
         rois,
+        input,
         spatial_scale,
         pooled_height,
         pooled_width,
@@ -59,7 +60,8 @@ at::Tensor ROIAlign_backward(
         channels,
         height,
         width,
-        sampling_ratio);
+        sampling_ratio,
+        bbox_grad);
 #else
     AT_ERROR("Not compiled with GPU support");
 #endif
