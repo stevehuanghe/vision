@@ -39,7 +39,7 @@ class _RoIAlignFunction(Function):
             grad_output, rois, inputs, spatial_scale,
             output_size[0], output_size[1], bs, ch, h, w, sampling_ratio, grad_bbox)
 
-        grad_bbox = torch.cat((idx, grad_bbox), dim=1)
+        grad_bbox = torch.cat((idx, grad_bbox), dim=1).type_as(grad_input)
         return grad_input, grad_bbox, None, None, None
 
 
